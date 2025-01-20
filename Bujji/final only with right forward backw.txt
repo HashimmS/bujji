@@ -1,0 +1,167 @@
+final only with right forward backward and left
+
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <Servo.h>
+
+
+// Access Point credentials
+const char* ssid = "TEAM-1";
+const char* password = "00000000";
+
+
+// Define pins
+#define SERVO_PIN D2
+#define MOTOR_FWD D0
+#define MOTOR_REV D1
+
+
+// Create server and servo objects
+ESP8266WebServer server(80);
+Servo servo;
+
+
+// Variables
+int servoPos = 90;  // Initial position
+const int servoLeft = 90 + 30;
+const int servoRight = 90 - 30;
+
+
+// Function to stop the motors
+void stopMotors() {
+  digitalWrite(MOTOR_FWD, LOW);
+  digitalWrite(MOTOR_REV, LOW);
+}
+
+
+// HTML interface
+String generateHTML() {
+  return R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Robot Controller</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+    }
+    .button {
+      display: inline-block;
+      width: 100px;
+      height: 100px;
+      margin: 20px;
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      background-color: #007BFF;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .button:active {
+      background-color: #0056b3;
+    }
+    .controller {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .row {
+      display: flex;
+      justify-content: center;
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Robot Controller</h1>
+  <div class="controller">
+    <div class="row">
+      <button class="button" onmousedown="sendCommand('left')" onmouseup="sendCommand('stop')">Left</button>
+      <button class="button" onmousedown="sendCommand('fwd')" onmouseup="sendCommand('stop')">Fwd</button>
+      <button class="button" onmousedown="sendCommand('right')" onmouseup="sendCommand('stop')">Right</button>
+    </div>
+    <div class="row">
+      <button class="button" onmousedown="sendCommand('rev')" onmouseup="sendCommand('stop')">Rev</button>
+    </div>
+  </div>
+  <script>
+    function sendCommand(cmd) {
+      fetch(/${cmd});
+    }
+  </script>
+</body>
+</html>
+)rawliteral";
+}
+
+
+// Setup function
+void setup() {
+  // Initialize Serial and peripherals
+  Serial.begin(115200);
+  servo.attach(SERVO_PIN);
+  pinMode(MOTOR_FWD, OUTPUT);
+  pinMode(MOTOR_REV, OUTPUT);
+  stopMotors();
+  servo.write(servoPos);
+
+
+  // Start Access Point
+  WiFi.softAP(ssid, password);
+  Serial.println("Access Point started");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.softAPIP());
+
+
+  // Set up server routes
+  server.on("/", []() {
+    server.send(200, "text/html", generateHTML());
+  });
+
+
+  server.on("/fwd", []() {
+    digitalWrite(MOTOR_FWD, HIGH);
+    digitalWrite(MOTOR_REV, LOW);
+    server.send(200, "text/plain", "Moving Forward");
+  });
+
+
+  server.on("/rev", []() {
+    digitalWrite(MOTOR_FWD, LOW);
+    digitalWrite(MOTOR_REV, HIGH);
+    server.send(200, "text/plain", "Moving Reverse");
+  });
+
+
+  server.on("/left", []() {
+    servo.write(servoLeft);
+    server.send(200, "text/plain", "Turning Left");
+  });
+
+
+  server.on("/right", []() {
+    servo.write(servoRight);
+    server.send(200, "text/plain", "Turning Right");
+  });
+
+
+  server.on("/stop", []() {
+    stopMotors();
+    servo.write(servoPos);
+    server.send(200, "text/plain", "Stopped");
+  });
+
+
+  // Start server
+  server.begin();
+  Serial.println("Server started");
+}
+
+
+// Loop function
+void loop() {
+  server.handleClient();
+}
